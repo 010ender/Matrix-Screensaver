@@ -1,0 +1,14 @@
+body {
+  background-color: black;
+  margin: 0;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  cursor: none;
+  filter: 
+    brightness(300%)
+    saturate(80%);
+  transform: scale(1.3);
+}
