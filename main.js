@@ -1,0 +1,281 @@
+const canvas = document.getElementById('Matrix');
+const context = canvas.getContext('2d');
+
+canvas.width = window.innerWidth / 1.1;
+canvas.height = (window.innerHeight + 20) / 1.1;
+
+const settings = {
+    three: true, // three dimensional projection, looks better with high settings.darkness (> 0.1)
+    darkness: 0.5, // basically just how fast the rain disappears, between 0-1.
+    glow: 17, //how big the glow is in pixels, 0 is no glow
+    size: 20, //size of the matrix rain, in pixels. This feature is disregarded when settings.three is set to true.
+    speed: 50, //how fast the draw loop executes, (so how fast the rain falls), in milliseconds. Default: 40. This feature is disregarded when settings.fixedSpeed is set to true.
+    range: 0.8, //how spread out the rain is, basically density, but higher numbers indicate fewer raindrops. Between 0-1.
+    //characters: "X", //a list of characters for the Matrix rain.
+    fixedSpeed: true, //if settings.fixedSpeed is set to false, instead of running the draw loop every settings.speed, the program utilizes requestAnimationFrame to allow for consistent frame rates. settings.speed is disregarded if settings.fixedSpeed is set to false.
+    improvedGlowing: true, //this is an extremely laggy feature. Low-end devices may struggle to run the rain at good frame rates. Simply put, adds an afterglow halo to the characters.
+    lightning: 1 // Flashes of light to simulate storming. Low numbers result in more flashing, and higher numbers result in less flashing. Set to 1 to disable the feature. Between 0-1.
+}
+
+const colors = {
+    backgroundColorRed: 0, // Default: 0
+    backgroundColorGreen: 0, // Default: 0
+    backgroundColorBlue: 0, // Default: 0
+    shadowColor: "limegreen", // Default: "limegreen"
+    matrixRain: "#38d914", // Default: "#38d914"
+    leadingMatrixRain: "white", // Default: "white"
+    improvedBlurRed: 0, // Default: 0
+    improvedBlurGreen: 1, // Default: 1
+    improvedBlurBlue: 0 // Default: 0
+}
+
+let fontSize = settings.size;
+const columns = canvas.width / fontSize;
+
+const rainDrops = Array.from({ length: columns }).fill(canvas.height);
+
+for( let x = 0; x < columns; x++ ) {
+    rainDrops[x] = 1;
+}
+
+function random(min, max) {
+    return Math.random() * (max - min) + min;
+}
+
+function calculateFontSize() {
+    if(!settings.three) {
+        return fontSize;
+    }
+    const r = Math.round(random(1, 3));
+    if(r == 1) {
+        return 15;
+    } else if(r == 2) {
+        return 20;
+    } else if(r == 3){
+        return 30;
+    }
+}
+
+let currentChar = "0" //helper function
+
+// Define an array to store font sizes for each column
+const columnFontSizes = Array.from({ length: rainDrops.length }, () => calculateFontSize());
+
+// Create an array to store the previously drawn drop position (the last frame’s position)
+const prevDrops = Array.from({ length: rainDrops.length }, () => 1);
+
+const draw = () => {
+    // Reset settings.
+    context.shadowColor = "#0F0";
+    context.shadowBlur = 0;
+    
+    // More settings
+    context.imageSmoothingEnabled = false;
+
+    // Glowing thingy
+    if(settings.improvedGlowing) {
+        updateBackground();
+        context.drawImage(offscreenCanvas, 0, 0);
+    }
+
+    // Draw a semi-transparent black rectangle over the whole canvas to fade previous characters.
+    if(!lightning()) {
+        context.fillStyle = `rgba(${colors.backgroundColorRed}, ${colors.backgroundColorGreen}, ${colors.backgroundColorBlue}, ${settings.darkness})`;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+    } else {
+        context.fillStyle = createStaticGradient();
+        context.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    // Set the glow for the new characters.
+    context.shadowColor = colors.shadowColor;
+    context.shadowBlur = settings.glow;
+    
+    // For each column...
+    for (let i = 0; i < rainDrops.length; i++) {
+        const fS = columnFontSizes[i];
+        context.font = fS + "px monospace";
+        
+        if(currentChar == 0) {
+            currentChar = 1;
+        } else {
+            currentChar = 0;
+        }
+        
+        const text = currentChar;
+        
+        /* Removed code
+        const text = settings.characters.charAt(
+            Math.floor(Math.random() * settings.characters.length)
+        );
+        */
+        
+        let h1; //helper variable
+        if(currentChar == 1) {
+            h1 = 0;
+        } else {
+            h1 = 1;
+        }
+        
+        // First, re-draw the previous drop (from the last frame) in green;
+        // these are the trail characters left over from earlier frames.
+        context.fillStyle = colors.matrixRain;
+        context.fillText(text, i * fS, prevDrops[i] * fS);
+        
+        // Now, draw the new (leading) character in white.
+        context.fillStyle = colors.leadingMatrixRain;
+        context.fillText(h1, i * fS, rainDrops[i] * fS);
+        
+        // Store the current drop's position as the previous drop for the next frame.
+        prevDrops[i] = rainDrops[i];
+
+        // Reset the drop when it moves off-screen.
+        if (rainDrops[i] * fS > canvas.height && Math.random() > settings.range) {
+            rainDrops[i] = 0;
+            prevDrops[i] = 0;
+        }
+        
+        rainDrops[i]++;
+    }
+};
+
+const animate = () => {
+    draw();
+    requestAnimationFrame(animate);
+};
+
+if(!settings.fixedSpeed) {
+    animate();
+} else {
+    setInterval(draw, settings.speed);
+}
+
+let offscreenCanvas = document.createElement("canvas");
+const offscreenCtx = offscreenCanvas.getContext("2d");
+
+offscreenCanvas.width = canvas.width;
+offscreenCanvas.height = canvas.height;
+
+function lightning() {
+    if(Math.random() > settings.lightning) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+function updateBackground() {
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    
+    // Convert pixel data to brightness values
+    for (let i = 0; i < data.length; i += 4) {
+        const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+        data[i] = clamp(brightness * 2, 0, 255) * colors.improvedBlurRed; // Red channel
+        data[i + 1] = clamp(brightness * 2, 0, 255) * colors.improvedBlurGreen; // Green channel
+        data[i + 2] = clamp(brightness * 2, 0, 255) * colors.improvedBlurBlue; // Blue channel
+        data[i + 3] = brightness; // Alpha for blending
+    }
+
+    // Apply blur
+    offscreenCtx.putImageData(imageData, 0, 0);
+    offscreenCtx.filter = "blur(50px)";
+    offscreenCtx.drawImage(offscreenCanvas, 0, 0);
+    offscreenCtx.drawImage(offscreenCanvas, 0, 0);
+    offscreenCtx.drawImage(offscreenCanvas, 0, 0);
+}
+
+function clamp(num, min, max) {
+  return Math.min(Math.max(num, min), max);
+}
+
+function createGradient() {
+    const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+    
+    // Dynamic color values changing over time
+    const time = Date.now() * 0.0001; // Small time-based value for animation
+
+    const color1 = `rgba(0, ${clamp((Math.sin(time) / 2) * 200, 0, 50)}, 0, ${settings.darkness})`;
+    const color2 = `rgba(0, 0, 0, ${settings.darkness})`;
+
+    gradient.addColorStop(0, color1);
+    gradient.addColorStop(1, color2);
+    
+    return gradient;
+}
+
+function createStaticGradient() {
+    const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+    
+    const color1 = `rgba(0, 75, 0, ${settings.darkness})`;
+    const color2 = `rgba(0, 0, 0, ${settings.darkness})`;
+
+    gradient.addColorStop(0, color1);
+    gradient.addColorStop(1, color2);
+    
+    return gradient;
+}
+
+function getBrightness(canvas, x, y) {
+    const data = getColor(canvas, x, y);
+    const grey = (data[0] + data[1] + data[2]) / 3
+    
+    return grey;
+}
+
+function getColor(canvas, x, y) {
+    const ca = document.getElementById(canvas);
+    const ctx = ca.getContext('2d');
+    
+    const imageData = ctx.getImageData(x, y, 1, 1);
+    const data = imageData.data;
+
+    /*
+    const red = data[0];
+    const green = data[1];
+    const blue = data[2];
+    */
+    
+    return data;
+}
+
+canvas.addEventListener("click", (event) => {
+    const x = event.clientX;
+    const y = event.clientY;
+
+    for(let i = 0; i < 20; i++) {
+        context.fillStyle = `rgba(${random(0, 255)}, ${random(0, 255)}, ${random(0, 255)}, 0.5)`;
+        context.fillRect(0, random(0, canvas.height), canvas.width, 2);
+    }
+});
+
+/*
+Old, legacy version in case of extensial crisis.
+
+const draw = () => {
+    context.shadowColor = "#0F0";
+    context.shadowBlur = 0;
+    
+    context.fillStyle = `rgba(0, 0, 0, ${settings.darkness})`;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    
+    context.shadowColor = "#4cff4c";
+    context.shadowBlur = Math.random() * settings.glow;
+
+    for (let i = 0; i < rainDrops.length; i++) {
+        const fontSize = columnFontSizes[i]; // Use the predetermined font size for this column
+        context.font = fontSize + 'px monospace';
+
+        const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+
+        context.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+
+        if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+            rainDrops[i] = 0;
+        }
+        rainDrops[i]++;
+    }
+};
+
+setInterval(draw, 30);
+*/
