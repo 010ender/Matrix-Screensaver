@@ -1,4 +1,4 @@
-const canvas = document.getElementById('Matrix');
+let canvas = document.getElementById('Matrix');
 const context = canvas.getContext('2d');
 
 canvas.width = window.innerWidth / 1.1;
@@ -70,6 +70,8 @@ const draw = () => {
     context.shadowBlur = 0;
     
     // More settings
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
     context.imageSmoothingEnabled = false;
 
     // Glowing thingy
